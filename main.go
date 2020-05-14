@@ -10,6 +10,7 @@ import (
 	"k8s.io/api/core/v1"
 	jsonserializer "k8s.io/apimachinery/pkg/runtime/serializer/json"
 	"k8s.io/kubectl/pkg/scheme"
+	// yaml "gopkg.in/yaml.v2"
 )
 
 func main() {
@@ -40,13 +41,15 @@ func main() {
 	switch action {
 	case "info":
 		releaseInfo(data)
+	case "get-manifests":
+		getManifests(data)
 	case "set-status-deployed":
 		setReleaseStatus(data)
-	case "set-new-release-name":
+	case "set-release-name":
 		if len(os.Args) < 3 {
 			fmt.Fprintf(os.Stderr, "ERROR: new release name not specify\n")
 		}
-		setNewReleaseName(data, os.Args[2])
+		setReleaseName(data, os.Args[2])
 	default:
 		fmt.Fprintf(os.Stderr, "ERROR: invalid action: %s\nYou need to specify action: info or set-status-deployed or set-new-release-name\n", action)
 		os.Exit(1)
@@ -64,14 +67,14 @@ func releaseInfo(data string) {
 	fmt.Printf("Name: %v\nNamespace: %v\nStatus: %v\n", release.Name, release.Namespace, release.Info.Status.Code)
 }
 
-func getReleaseStatus(data string) {
+func getManifests(data string) {
 	decoder := scheme.Codecs.UniversalDeserializer()
 
 	obj, _, _ := decoder.Decode([]byte(data), nil, nil)
 	cm := obj.(*v1.ConfigMap)
 
 	release, _ := DecodeRelease(cm.Data["release"])
-	fmt.Printf("Status: %v\n", release.Info.Status.Code)
+	fmt.Printf("Status: %v\n", release.Manifest)
 }
 
 func setReleaseStatus(data string) {
@@ -94,7 +97,7 @@ func setReleaseStatus(data string) {
 	_ = jsonEncoder.Encode(cm, os.Stdout)
 }
 
-func setNewReleaseName(data, newReleaseName string) {
+func setReleaseName(data, newReleaseName string) {
 	decoder := scheme.Codecs.UniversalDeserializer()
 
 	obj, _, _ := decoder.Decode([]byte(data), nil, nil)
