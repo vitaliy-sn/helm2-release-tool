@@ -42,7 +42,7 @@ func main() {
 	case "info":
 		releaseInfo(data)
 	case "get-manifests":
-		getManifests(data)
+		getManifest(data)
 	case "set-status-deployed":
 		setReleaseStatus(data)
 	case "set-release-name":
@@ -50,8 +50,13 @@ func main() {
 			fmt.Fprintf(os.Stderr, "ERROR: new release name not specify\n")
 		}
 		setReleaseName(data, os.Args[2])
+	case "set-release-namespace":
+		if len(os.Args) < 3 {
+			fmt.Fprintf(os.Stderr, "ERROR: new release namespace not specify\n")
+		}
+		setReleaseNamespace(data, os.Args[2])
 	default:
-		fmt.Fprintf(os.Stderr, "ERROR: invalid action: %s\nYou need to specify action: info or set-status-deployed or set-new-release-name\n", action)
+		fmt.Fprintf(os.Stderr, "ERROR: invalid action: %s\nYou need to specify action: info or set-status-deployed or set-new-release-name or set-new-release-namespace\n", action)
 		os.Exit(1)
 	}
 
@@ -67,14 +72,14 @@ func releaseInfo(data string) {
 	fmt.Printf("Name: %v\nNamespace: %v\nStatus: %v\n", release.Name, release.Namespace, release.Info.Status.Code)
 }
 
-func getManifests(data string) {
+func getManifest(data string) {
 	decoder := scheme.Codecs.UniversalDeserializer()
 
 	obj, _, _ := decoder.Decode([]byte(data), nil, nil)
 	cm := obj.(*v1.ConfigMap)
 
 	release, _ := DecodeRelease(cm.Data["release"])
-	fmt.Printf("Status: %v\n", release.Manifest)
+	fmt.Printf("%v\n", release.Manifest)
 }
 
 func setReleaseStatus(data string) {
@@ -114,6 +119,23 @@ func setReleaseName(data, newReleaseName string) {
 	cm.Name = strings.Replace(cm.Name, currentName, newReleaseName, 1)
 	cm.ObjectMeta.Labels["NAME"] = newReleaseName
 	cm.SelfLink = strings.Replace(cm.SelfLink, currentName, newReleaseName, 1)
+
+	jsonEncoder := jsonserializer.NewSerializer(jsonserializer.DefaultMetaFactory, scheme.Scheme, scheme.Scheme, true)
+
+	_ = jsonEncoder.Encode(cm, os.Stdout)
+}
+
+func setReleaseNamespace(data, newReleaseNamespace string) {
+	decoder := scheme.Codecs.UniversalDeserializer()
+
+	obj, _, _ := decoder.Decode([]byte(data), nil, nil)
+	cm := obj.(*v1.ConfigMap)
+
+	decoded, _ := DecodeRelease(cm.Data["release"])
+	decoded.Namespace = newReleaseNamespace
+	encoded, _ := EncodeRelease(decoded)
+
+	cm.Data["release"] = encoded
 
 	jsonEncoder := jsonserializer.NewSerializer(jsonserializer.DefaultMetaFactory, scheme.Scheme, scheme.Scheme, true)
 
