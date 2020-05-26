@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"strings"
 
@@ -41,8 +42,10 @@ func main() {
 	switch action {
 	case "info":
 		releaseInfo(data)
-	case "get-manifests":
+	case "get-manifest":
 		getManifest(data)
+	case "set-manifest":
+		setManifest(data, os.Args[2])
 	case "set-status-deployed":
 		setReleaseStatus(data)
 	case "set-release-name":
@@ -60,6 +63,11 @@ func main() {
 		os.Exit(1)
 	}
 
+}
+
+func fRead(path string) string {
+	content, _ := ioutil.ReadFile(path)
+	return string(content)
 }
 
 func releaseInfo(data string) {
@@ -80,6 +88,25 @@ func getManifest(data string) {
 
 	release, _ := DecodeRelease(cm.Data["release"])
 	fmt.Printf("%v\n", release.Manifest)
+	fmt.Printf("manifest type: %T\n", release.Manifest)
+}
+
+func setManifest(data, manifestPath string) {
+	decoder := scheme.Codecs.UniversalDeserializer()
+
+	obj, _, _ := decoder.Decode([]byte(data), nil, nil)
+	cm := obj.(*v1.ConfigMap)
+
+	release, _ := DecodeRelease(cm.Data["release"])
+	release.Manifest = fRead(manifestPath)
+
+	encoded, _ := EncodeRelease(release)
+
+	cm.Data["release"] = encoded
+
+	jsonEncoder := jsonserializer.NewSerializer(jsonserializer.DefaultMetaFactory, scheme.Scheme, scheme.Scheme, true)
+
+	_ = jsonEncoder.Encode(cm, os.Stdout)
 }
 
 func setReleaseStatus(data string) {
